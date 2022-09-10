@@ -2,7 +2,7 @@ import math
 import main as lib
 
 # download flask and create server where you can post video from phone and you get photo af the effect back.
-from flask import Flask, redirect, request, session, send_file, Response
+from flask import Flask, redirect, request, session, send_file, Response, render_template
 from werkzeug.utils import secure_filename
 
 from moviepy.editor import VideoFileClip, ImageClip
@@ -30,7 +30,10 @@ app.config['MAX_CONTENT-PATH'] = 2**29
 
 @app.get('/')
 def index():
-    return redirect('/index.html')
+    return render_template('index.html', 
+        funcs=lib.FUNC_TO_CLASS.keys(),
+        func_dict=lib.FUNC_TO_CLASS
+    )
 
 @app.post('/')
 def index_post():
@@ -73,9 +76,9 @@ def processing():
             img_arr = image_clip.get_frame(0)
             #result_img = eval(f'lib.{func}_start')(img_arr)
             processing.start(img_arr)
-            clips_amount = len(tt)
+            #clips_amount = len(tt)
 
-            step_func = eval(f'lib.{func}_step')
+            #step_func = eval(f'lib.{func}_step')
             l = list(enumerate(tt))
             total = len(l)
             for i, t in l:
@@ -119,11 +122,17 @@ if __name__ == '__main__':
                 'processed',
                 file
             ))
-        with zipfile.ZipFile(f'uploads-{ math.floor(datetime.utcnow().timestamp())}.zip', 'w', zipfile.ZIP_DEFLATED) as zipf:
-            for file in tqdm(os.listdir('uploads'), ascii=True):
-                file_path = os.path.join(
-                    'uploads',
-                    file
-                )
-                zipf.write(file_path)
-                os.remove(file_path)
+            
+        uploaded_files = os.listdir('uploads')
+        if len(uploaded_files) > 0:
+            with zipfile.ZipFile(
+                    f'uploads-{ math.floor(datetime.utcnow().timestamp())}.zip',
+                    'w', zipfile.ZIP_DEFLATED
+                ) as zipf:
+                for file in tqdm(uploaded_files, ascii=True):
+                    file_path = os.path.join(
+                        'uploads',
+                        file
+                    )
+                    zipf.write(file_path)
+                    os.remove(file_path)

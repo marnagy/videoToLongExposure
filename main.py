@@ -10,7 +10,7 @@ import sys
 def get_args() -> Namespace:
     parser = ArgumentParser()
     parser.add_argument('-f', '--file', required=True)
-    parser.add_argument('--func', default='avg', choices=['avg', 'max', 'min'])
+    parser.add_argument('--func', default='avg', choices=FUNC_TO_CLASS.keys())
     args = parser.parse_args()
 
     if os.path.splitext( args.file )[-1].lower() not in ['.mp4', '.avi', '.mov']:
@@ -20,7 +20,7 @@ def get_args() -> Namespace:
     return args
 
 class BaseProcessing:
-    __slots__ = ('res_photo')
+    __slots__ = ('res_photo', 'name')
 
     def __init__(self) -> None:
         self.res_photo = None
@@ -45,6 +45,7 @@ class AverageProcessing(BaseProcessing):
 
     def __init__(self) -> None:
         super().__init__()
+        self.name = 'Average'
         self.amount = 0
 
     def start(self, example_img: np.ndarray) -> None:
@@ -53,14 +54,31 @@ class AverageProcessing(BaseProcessing):
     def step(self, new_img: np.ndarray) -> None:
         self.res_photo = self.res_photo + new_img.astype(dtype=np.uint64)
         self.amount += 1
-        #print(self.amount)
 
     def end(self) -> None:
+        print(f'Frames processed: { self.amount }')
         self.res_photo = np.round( self.res_photo / self.amount ).astype(np.uint64)
+
+class AdditiveProcessing(BaseProcessing):
+    def __init__(self) -> None:
+        super().__init__()
+        self.name = 'Additive'
+
+    def start(self, example_img: np.ndarray) -> None:
+        self.res_photo = np.zeros(example_img.shape, dtype=np.uint64)
+
+    def step(self, new_img: np.ndarray) -> None:
+        self.res_photo = self.res_photo + new_img.astype(dtype=np.uint64)
+
+    def end(self) -> None:
+        division_rate = (np.max(self.res_photo) // 255) + 1
+        print(f'Division rate: {division_rate}')
+        self.res_photo = np.round( self.res_photo / division_rate ).astype(np.uint64)
 
 class MaximumProcessing(BaseProcessing):
     def __init__(self) -> None:
         super().__init__()
+        self.name = 'Maximum'
 
     def start(self, example_img: np.ndarray):
         self.res_photo = np.zeros(example_img.shape, dtype=np.uint64)
@@ -71,9 +89,19 @@ class MaximumProcessing(BaseProcessing):
     def end(self):
         pass
 
+class MaximumStretchProcessing(MaximumProcessing):
+    def __init__(self) -> None:
+        super().__init__()
+        self.name = 'Maximum and Stretch'
+
+    def end(self):
+        min_num, max_num = np.min(self.res_photo), np.max(self.res_photo)
+        self.res_photo = np.round((self.res_photo - min_num) / ( (max_num - min_num) / 255 ))
+
 class MinimumProcessing(BaseProcessing):
     def __init__(self) -> None:
         super().__init__()
+        self.name = 'Minimum'
 
     def start(self, example_img: np.ndarray):
         self.res_photo = 255 * np.ones(example_img.shape, dtype=np.uint64)
@@ -84,38 +112,30 @@ class MinimumProcessing(BaseProcessing):
     def end(self):
         pass
 
+class MinimumStretchProcessing(BaseProcessing):
+    def __init__(self) -> None:
+        super().__init__()
+        self.name = 'Minimum And Stretch'
+
+    def start(self, example_img: np.ndarray):
+        self.res_photo = 255 * np.ones(example_img.shape, dtype=np.uint64)
+
+    def step(self, new_img: np.ndarray):
+        self.res_photo = np.minimum(self.res_photo, new_img)
+
+    def end(self):
+        division_rate = (np.max(self.res_photo) / 255)
+        print(f'Division rate: {division_rate}')
+        self.res_photo = np.round( self.res_photo / division_rate ).astype(np.uint64)
+
 FUNC_TO_CLASS: dict[str, BaseProcessing] = {
     'avg': AverageProcessing(),
     'max': MaximumProcessing(),
-    'min': MinimumProcessing()
+    'maxstr': MaximumStretchProcessing(),
+    'min': MinimumProcessing(),
+    'minstr': MinimumStretchProcessing(),
+    'add': AdditiveProcessing()
 }
-
-# def avg_start(example_img: np.ndarray):
-#     return np.zeros(example_img.shape, dtype=np.uint64)
-
-# def avg_step(cumulative_img: np.ndarray, new_img: np.ndarray):
-#     return cumulative_img + new_img
-
-# def avg_final(cumulative_img: np.ndarray, amount: int):
-#     return np.round( cumulative_img / amount )
-
-# def max_start(example_img: np.ndarray):
-#     return np.zeros(example_img.shape, dtype=np.uint64)
-
-# def max_step(cumulative_img: np.ndarray, new_img: np.ndarray):
-#     return np.maximum(cumulative_img, new_img)
-
-# def max_final(cumulative_img: np.ndarray, _: any):
-#     return cumulative_img
-
-# def min_start(example_img: np.ndarray):
-#     return 255 * np.ones(example_img.shape, dtype=np.uint64)
-
-# def min_step(cumulative_img: np.ndarray, new_img: np.ndarray):
-#     return np.minimum(cumulative_img, new_img)
-
-# def min_final(cumulative_img: np.ndarray, _: any):
-#     return cumulative_img
 
 def main():
     args = get_args()
@@ -137,7 +157,7 @@ def main():
         img_arr = image_clip.get_frame(0)
         #print(img_arr.shape)
         needs_flip = list(img_arr.shape[:2]) != list(video_file.size)
-        print(f'Needs flip? {needs_flip}')
+        #print(f'Needs flip? {needs_flip}')
         processing.start(img_arr)
 
         for i, t in tqdm(list(enumerate(tt)), ascii=True, dynamic_ncols=True):

@@ -1,8 +1,4 @@
 <!DOCTYPE html>
-<!--[if lt IE 7]>      <html class="no-js lt-ie9 lt-ie8 lt-ie7"> <![endif]-->
-<!--[if IE 7]>         <html class="no-js lt-ie9 lt-ie8"> <![endif]-->
-<!--[if IE 8]>         <html class="no-js lt-ie9"> <![endif]-->
-<!--[if gt IE 8]>      <html class="no-js"> <!--<![endif]-->
 <html>
     <head>
         <meta charset="utf-8">
@@ -20,9 +16,9 @@
             <div id="func-div">
                 <label for="Function">Function Type:</label>
                 <select name="func" required>
-                    <option value="avg">Average</option>
-                    <option value="min">Minimum</option>
-                    <option value="max">Maximum</option>
+                    {% for key in func_dict  %}
+                        <option value="{{ key }}">{{ func_dict[key].name }}</option>
+                    {% endfor %}
                 </select>
             </div>
             <input type="file" name="video_file" accept="video/*">
