@@ -6,6 +6,7 @@ from PIL import Image
 from tqdm import tqdm
 import os
 import sys
+from typing import Optional
 
 def get_args() -> Namespace:
     parser = ArgumentParser()
@@ -13,10 +14,18 @@ def get_args() -> Namespace:
     parser.add_argument('--func', default='avg', choices=FUNC_TO_CLASS.keys())
     parser.add_argument('-s', '--stretch', default=False, const=True, nargs='?')
 
+    # do Long exposure only on part of the video
+    parser.add_argument('--start_time', default=0, type=int, help="Starting time (in seconds) when to start doing long exposure")
+    parser.add_argument('--length', default=None, type=int, help='Length (in seconds) of doing long exposure from start_time. If not specified, long exposure will be made to the end of the video.')
+
     args = parser.parse_args()
 
     if os.path.splitext( args.file )[-1].lower() not in ['.mp4', '.avi', '.mov']:
         print(f'Unsupported file type: {args.file}', file=sys.stderr)
+        exit(1)
+
+    if args.start_time < 0:
+        print(f'Cannot start sooner than in 0 seconds.', file=sys.stderr)
         exit(1)
 
     return args
@@ -126,7 +135,11 @@ def main():
             
         #print(video_file.size)
         height, width = video_file.size
-        tt = np.arange(0, video_file.duration, 1.0 / video_file.fps)
+        tt = np.arange(
+            args.start_time,
+            video_file.duration if args.length is None else args.length + args.start_time,
+            1.0 / video_file.fps
+        )
         
         image_clip: ImageClip = video_file.to_ImageClip(0)
         
@@ -134,6 +147,8 @@ def main():
         #print(img_arr.shape)
         needs_flip = list(img_arr.shape[:2]) != list(video_file.size)
         #print(f'Needs flip? {needs_flip}')
+
+        # set dimensions
         processing.start(img_arr)
 
         for i, t in tqdm(list(enumerate(tt)), ascii=True, dynamic_ncols=True):
@@ -151,7 +166,7 @@ def main():
     result_image: Image.Image = processing.get_photo()
 
     result_image.resize((width, height))
-    result_image.save(f'{ os.path.splitext(args.file)[0] }-{args.func}{ "-stretch" if args.stretch else "" }.png')
+    result_image.save(f'{ os.path.splitext(args.file)[0] }-{args.func}{ "-stretch" if args.stretch else "" }_{args.start_time}-{args.length}.png')
 
 if __name__ == '__main__':
     main()
