@@ -43,6 +43,8 @@ def index_post():
     f = request.files['video_file']
     session['func'] = request.form['func']
     session['stretch'] = request.form['stretch'] == 'Yes' if 'stretch' in request.form else False
+    session['start_time'] = request.form['start_time']
+    session['length'] = request.form['length']
 
     filename = f'{int(dt.timestamp())}--{secure_filename(f.filename)}'
     session['filename'] = filename
@@ -54,7 +56,7 @@ def format_sse(data, event = None):
 
 @app.get('/api/processing')
 def processing():
-    def process(func: str, stretch: bool, filename: str):
+    def process(func: str, stretch: bool, filename: str, start_time: int, length: int):
         # start SSE
         # request.headers.set('Cache-Control', 'no-store')
         # request.headers.set('Content-Type', 'text/event-stream')
@@ -62,16 +64,20 @@ def processing():
         processing = lib.FUNC_TO_CLASS[func]
 
         #func = sess['func']
-        file_location = os.path.join('uploads', filename)
+        file_path = os.path.join('uploads', filename)
         
         # load video file
-        with VideoFileClip( file_location ) as video_file:
+        with VideoFileClip( file_path ) as video_file:
             # fix vertical videos
             if video_file.rotation in (90, 270):
                 video_file = video_file.resize(video_file.size[::-1])
                 video_file.rotation = 0
 
-            tt = np.arange(0, video_file.duration, 1.0 / video_file.fps)
+            tt = np.arange(
+                start_time,
+                video_file.duration if length is None else length + start_time,
+                1.0 / video_file.fps
+            )
             
             image_clip: ImageClip = video_file.to_ImageClip(0)
             img_arr = image_clip.get_frame(0)
@@ -108,7 +114,7 @@ def processing():
         yield format_sse(f'{total}/{total}')
 
     session['result_filename'] = f'{ os.path.splitext(session["filename"])[0].split("--")[1] }-{session["func"]}{ "-stretched" if session["stretch"] else "" }.png'
-    return Response(process(session['func'], session['stretch'], session['filename']), mimetype='text/event-stream')
+    return Response(process(session['func'], session['stretch'], session['filename'], session['start_time'], session['length']), mimetype='text/event-stream')
     
 @app.get('/result_file')
 def download():
