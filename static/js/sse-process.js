@@ -17,7 +17,7 @@ sse.onmessage = e => {
     bar.style.width = `${barWidth}px`
 
     // redirect if progress ended
-    if (parts[0] == parts[1]){
+    if (current == total){
         sse.close()
         window.location.pathname = '/result_file'
     }        

@@ -73,9 +73,12 @@ def processing():
                 video_file = video_file.resize(video_file.size[::-1])
                 video_file.rotation = 0
 
+            start = start_time
+            end = video_file.duration if length is None else length + start_time
+            print(start, end, length)
             tt = np.arange(
                 start_time,
-                video_file.duration if length is None else length + start_time,
+                end,
                 1.0 / video_file.fps
             )
             
@@ -83,12 +86,13 @@ def processing():
             img_arr = image_clip.get_frame(0)
             #result_img = eval(f'lib.{func}_start')(img_arr)
             processing.start(img_arr)
+            del img_arr
             #clips_amount = len(tt)
 
             #step_func = eval(f'lib.{func}_step')
             l = list(enumerate(tt))
             total = len(l)
-            for i, t in l:
+            for i, t in l: # tqdm(l, total=total, ascii=True):
                 image_clip: ImageClip = video_file.to_ImageClip(t)
                 img_arr = image_clip.get_frame(0)
                 processing.step(img_arr)
@@ -113,8 +117,27 @@ def processing():
 
         yield format_sse(f'{total}/{total}')
 
+    # print(f'Session:')
+    # print(session)
+
+    length = None
+    try:
+        length = int(session['length'])
+        if length <= 0:
+            length = None
+    except:
+        pass
     session['result_filename'] = f'{ os.path.splitext(session["filename"])[0].split("--")[1] }-{session["func"]}{ "-stretched" if session["stretch"] else "" }.png'
-    return Response(process(session['func'], session['stretch'], session['filename'], session['start_time'], session['length']), mimetype='text/event-stream')
+    return Response(
+        process(
+            session['func'],
+            session['stretch'],
+            session['filename'],
+            int(session['start_time']),
+            length
+        ),
+        mimetype='text/event-stream'
+    )
     
 @app.get('/result_file')
 def download():

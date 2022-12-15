@@ -22,8 +22,16 @@
                 </select>
             </div>
             <div>
+                <label for="stretch">Stretch: </label>
                 <input type="checkbox" name="stretch" value="Yes">
-                <label for="stretch">Stretch</label>
+            </div>
+            <div>
+                <label for="start_time">Start time </label>
+                <input type="number" min="0" value="0" name="start_time">
+            </div>
+            <div>
+                <label for="length">Length </label>
+                <input type="number" min="-1" value="-1" name="length">
             </div>
             <input type="file" name="video_file" accept="video/*">
             <button type="submit">Send</button>
