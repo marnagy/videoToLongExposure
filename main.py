@@ -11,6 +11,8 @@ def get_args() -> Namespace:
     parser = ArgumentParser()
     parser.add_argument('-f', '--file', required=True)
     parser.add_argument('--func', default='avg', choices=FUNC_TO_CLASS.keys())
+    parser.add_argument('-s', '--stretch', default=False, const=True, nargs='?')
+
     args = parser.parse_args()
 
     if os.path.splitext( args.file )[-1].lower() not in ['.mp4', '.avi', '.mov']:
@@ -89,15 +91,6 @@ class MaximumProcessing(BaseProcessing):
     def end(self):
         pass
 
-class MaximumStretchProcessing(MaximumProcessing):
-    def __init__(self) -> None:
-        super().__init__()
-        self.name = 'Maximum and Stretch'
-
-    def end(self):
-        min_num, max_num = np.min(self.res_photo), np.max(self.res_photo)
-        self.res_photo = np.round((self.res_photo - min_num) / ( (max_num - min_num) / 255 ))
-
 class MinimumProcessing(BaseProcessing):
     def __init__(self) -> None:
         super().__init__()
@@ -112,28 +105,11 @@ class MinimumProcessing(BaseProcessing):
     def end(self):
         pass
 
-class MinimumStretchProcessing(BaseProcessing):
-    def __init__(self) -> None:
-        super().__init__()
-        self.name = 'Minimum And Stretch'
-
-    def start(self, example_img: np.ndarray):
-        self.res_photo = 255 * np.ones(example_img.shape, dtype=np.uint64)
-
-    def step(self, new_img: np.ndarray):
-        self.res_photo = np.minimum(self.res_photo, new_img)
-
-    def end(self):
-        division_rate = (np.max(self.res_photo) / 255)
-        print(f'Division rate: {division_rate}')
-        self.res_photo = np.round( self.res_photo / division_rate ).astype(np.uint64)
 
 FUNC_TO_CLASS: dict[str, BaseProcessing] = {
     'avg': AverageProcessing(),
     'max': MaximumProcessing(),
-    'maxstr': MaximumStretchProcessing(),
     'min': MinimumProcessing(),
-    'minstr': MinimumStretchProcessing(),
     'add': AdditiveProcessing()
 }
 
@@ -167,9 +143,15 @@ def main():
     
     processing.end()
 
+    if args.stretch:
+        min_val, max_val = np.min(processing.res_photo), np.max(processing.res_photo)
+        print(f'Min: {min_val}, Max: {max_val}')
+        processing.res_photo = ((processing.res_photo - min_val) * (255 / max_val)).astype(np.int64)
+
     result_image: Image.Image = processing.get_photo()
+
     result_image.resize((width, height))
-    result_image.save(f'{ os.path.splitext(args.file)[0] }-{args.func}.png')
+    result_image.save(f'{ os.path.splitext(args.file)[0] }-{args.func}{ "-stretch" if args.stretch else "" }.png')
 
 if __name__ == '__main__':
     main()

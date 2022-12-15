@@ -42,6 +42,7 @@ def index_post():
     key = 'timestamp'
     f = request.files['video_file']
     session['func'] = request.form['func']
+    session['stretch'] = request.form['stretch'] == 'Yes' if 'stretch' in request.form else False
 
     filename = f'{int(dt.timestamp())}--{secure_filename(f.filename)}'
     session['filename'] = filename
@@ -53,7 +54,7 @@ def format_sse(data, event = None):
 
 @app.get('/api/processing')
 def processing():
-    def process(func, filename):
+    def process(func: str, stretch: bool, filename: str):
         # start SSE
         # request.headers.set('Cache-Control', 'no-store')
         # request.headers.set('Content-Type', 'text/event-stream')
@@ -92,17 +93,22 @@ def processing():
         #result_photo = eval(f'lib.{func}_final')(result_img, clips_amount)
         processing.end()
 
+        if stretch:
+            min_val, max_val = np.min(processing.res_photo), np.max(processing.res_photo)
+            #print(f'Min: {min_val}, Max: {max_val}')
+            processing.res_photo = ((processing.res_photo - min_val) * (255 / max_val)).astype(np.int64)
+
         result_img = processing.get_photo() #Image.fromarray( np.uint8(result_photo) )
         result_img_path = os.path.join(
             'processed',
-            f'{ os.path.splitext(filename)[0].split("--")[1] }-{func}.png'
+            f'{ os.path.splitext(filename)[0].split("--")[1] }-{func}{ "-stretched" if stretch else "" }.png'
         )
         result_img.save( result_img_path )
 
         yield format_sse(f'{total}/{total}')
 
-    session['result_filename'] = f'{ os.path.splitext(session["filename"])[0].split("--")[1] }-{session["func"]}.png'
-    return Response(process(session['func'], session['filename']), mimetype='text/event-stream')
+    session['result_filename'] = f'{ os.path.splitext(session["filename"])[0].split("--")[1] }-{session["func"]}{ "-stretched" if session["stretch"] else "" }.png'
+    return Response(process(session['func'], session['stretch'], session['filename']), mimetype='text/event-stream')
     
 @app.get('/result_file')
 def download():
